@@ -17,7 +17,11 @@ Final evaluation and comparison of algorithms. Currently only MILP and GA are im
 
 ### Dependencies
 1 Initialization: none
+
 2 Mixed Linear Integer Programming: 1 Initialization
+
 3 Genetic Algorithm: 1 Initialization
+
 4 Reinforcement Learning: none
+
 5 Evaluation: 1 Initialization, 2 Mixed Linear Integer Programming, 3 Genetic Algorithm
