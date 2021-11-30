@@ -1,18 +1,51 @@
 ### Initialization
 library(GA)
+library(dplyr)
 
-PopSize = 100 # Population size
-alpha_ga = 0.7 # Initialization percentage
+PopSize = 200 # Population size
+alpha_ga = 0.8 # Initialization percentage
 CrossProb = 0.7 # Crossover probability
-MutProb = 0.01 # Mutation probability
+MutProb = 0.015 # Mutation probability
 beta_ga = 0.2 # Replacement percentage
-CycleGen = 10 # Restart cycle mechanism
-epsilon_min = 0.1 # Low dispersion coefficient of variation
-epsilon_max = 0.6 # High dispersion coefficient of variation
-Rst = 0.15 # Restart mechanism percentage
-MaxGen = 200 # Stopping criteria
+CycleGen = 20 # Restart cycle mechanism
+epsilon_min = 0.2 # Low dispersion coefficient of variation
+epsilon_max = 0.7 # High dispersion coefficient of variation
+Rst = 0.25 # Restart mechanism percentage
+MaxGen = 300 # Stopping criteria
 
 ### FUNCTIONS ###
+
+### Initialization of Population
+generate_pop_fun = function(p_init=FALSE, p_popsize=PopSize){
+  # create empty list where all candidates are stored
+  r_population <- list()
+  for(p in 1:p_popsize){
+    r_population[[p]] <-  vector("list", n_size)  # Generate n_size list as n_size is
+    # maximum amount of production batches
+    v_batch_i <- 1
+    # In the initialization assign jobs either first-fit (prob = alpha_ga) or
+    # sort descending by degradation and then first-fit (prob = 1 - alpha_ga)
+    # In non-initialization cases, assign always random first-fit
+    # alpha_ga*p_popsize candidates will be shuffled and then assigned first-fit
+    if(p <= alpha_ga*p_popsize | p_init == FALSE){v_jobs_ordered = sample(n_size)}
+    # (1-alpha_ga)*p_popsize candidates will be sorted by degradation ascending and then assigned first-fit
+    else{v_jobs_ordered = job_df[order(job_df$degradation, decreasing = TRUE),]$job}
+    
+    # Assignment
+    for(i in v_jobs_ordered){
+      # assign jobs to batch until batch reaches full deg 
+      # if current batch + new job >= delta (= full deg)
+      if(sum(job_df$degradation[c(r_population[[p]][[v_batch_i]], i)]) >= delta){ 
+        # increase v_batch_i by one and open new batch
+        v_batch_i <- v_batch_i + 1
+      }
+      r_population[[p]][[v_batch_i]] <- c(r_population[[p]][[v_batch_i]], i) # append job to v_batch_i
+    }
+    r_population[[p]][sapply(r_population[[p]], is.null)] <- NULL # remove empty batches
+  }
+  return(r_population)
+}
+
 
 ### Calculate degradation for a batch ###
 degradation_fun = function(p_batch){
@@ -166,61 +199,179 @@ crossover_fun = function(p_population){
   r_children[sapply(r_children, is.null)] <- NULL 
   return(r_children)
 }
-  
-mutation(p_population){
+
+# Function: Mutate individuals randomly by Swapping
+mutation_fun = function(p_population, p_mutprob){
   for(i in 1:length(p_population)){
     # After the offspring are generated from the selection and crossover,
     # the offspring chromosomes may be mutated. Like crossover, there is
     # a mutation probability. If a randomly selected floating-point value
-    # is less than the mutation probability (MutProb), mutation is performed
+    # is less than the mutation probability (p_mutprob), mutation is performed
     # on the offspring; otherwise, no mutation occurs.
-    
+    if(p_mutprob >= runif(1)){
+      # For each mutation operation, the number of permutations is randomly
+      # chosen between (5%*n + 1) and (15%*n + 1) where n is the number jobs
+      for (j in 1:sample((ceiling(0.05*n_size+1):floor(0.15*n_size+1)), 1)){
+        # Swapping, if possible, two randomly selected jobs from two different
+        # blocks. We only allow mutations that guarantee the feasibility of
+        # the obtained solutions. Thus, the maximal threshold Δ (delta) must be
+        # respected for each block. We repeat until a valid swap is found.
+        # Create a batch & job index data.frame and shuffle it
+        v_batch_job_df = data.frame(batch=integer(), job=integer())
+        for(k in 1:length(p_population[[i]])){
+          v_batch_job_df = rbind(v_batch_job_df, data.frame(batch=rep(k, length(p_population[[i]][[k]])),
+                                                            job=1:length(p_population[[i]][[k]])))
+        }
+        v_batch_job_df <- v_batch_job_df[sample(nrow(v_batch_job_df)), ]
+        # Loop over random data.frame in case the first result has no valid swaps
+        for(k in 1:nrow(v_batch_job_df)){
+          v_stop = FALSE
+          # Sample batch/job combination
+          v_batch_job1 = v_batch_job_df[k,]
+          # Filter all other batches
+          v_batch2_job_df = v_batch_job_df %>% filter(batch != v_batch_job1$batch)
+          # Sample batch/job combination from another batch
+          for(l in 1:nrow(v_batch2_job_df)){
+            v_batch_job2 = v_batch2_job_df[l,]
+            # Try swap
+            v_temp_population = p_population[[i]]
+            v_job1 = v_temp_population[[v_batch_job1[[1]]]][[v_batch_job1[[2]]]]
+            v_job2 = v_temp_population[[v_batch_job2[[1]]]][[v_batch_job2[[2]]]]
+            v_temp_population[[v_batch_job1[[1]]]][[v_batch_job1[[2]]]] = v_job2
+            v_temp_population[[v_batch_job2[[1]]]][[v_batch_job2[[2]]]] = v_job1
+            # Check if swap lead to two feasible batches
+            if(degradation_fun(v_temp_population[[v_batch_job1[[1]]]]) < delta &
+               degradation_fun(v_temp_population[[v_batch_job2[[1]]]]) < delta){
+              p_population[[i]] = v_temp_population
+              #print(paste("Swapped in chromosome", i)) # TODO DEBUG DELETE
+              # We do not need to test other feasible solutions
+              v_stop = TRUE
+              break
+            }
+          }
+          if(v_stop){break} # Break the outer loop when the flag is fired
+          # If all batches have been run through and break has not fired yet,
+          # No swap is feasible for p_population[[i]]
+          if(k == nrow(v_batch_job_df)){print(paste("No feasible swap found for chromosome", i))} # TODO add generation index to print
+        }
+      }
+    }
   }
-  return(r_population)
+  return(p_population)
 }  
+
+ga_cost_fun = function(p_candidate){
+# TODO
+  r_cost = 0.5
+  return(r_cost)
+}
+
+CoV_fun = function(p_population){
+  # TODO
+  
+  # Cost function ga_cost_fun für population/candidate erstellen und ausrechnen
+  # Mean cost
+  v_mean = 1
+  # Standard deviation cost 
+  v_sd = 1
+  r_cov = v_mean/v_sd
+  return(r_cov)
+}
+
+# Eliminate worst Rst*PopSize individuals and replace with randoms
+exploration_fun = function(p_population){
+  # Generate Rst*PopSize individuals random, first-fit
+  v_new_rand = generate_pop_fun(p_init=FALSE, p_popsize = Rst*PopSize)
+  v_pop_fitness = as.data.frame(sapply(p_population, fitness_fun))
+  v_pop_order = order(-v_pop_fitness[,1])
+  # Select and remove unfittest Rst*PopSize individuals
+  v_fittest_Rst <- p_population[v_pop_order[1:(length(p_population)-round(Rst*PopSize))]]
+  # Join fittest and new pop
+  r_population = append(v_fittest_Rst, v_new_rand)
+}
+### Mutate fittest Rst*PopSize individuals and append to p_population
+exploitation_fun = function(p_population){
+  # get fittest Rst*PopSize individuals
+  v_pop_fitness = as.data.frame(sapply(p_population, fitness_fun))
+  v_pop_order = order(-v_pop_fitness[,1])
+  # Select fittest Rst*PopSize individuals
+  v_fittest_Rst <- p_population[v_pop_order[1:round(Rst*PopSize)]]
+  r_population = append(p_population, mutation_fun(v_fittest_Rst, 1))
+}
+
+# Function: Construct New Population with PopSize from parents and children
+replacement_fun = function(p_population){
+  v_pop_fitness = as.data.frame(sapply(p_population, fitness_fun))
+  v_pop_order = order(-v_pop_fitness[,1])
+  # Initialize new population list
+  r_new_population <- list()
+  v_cutoff = round(beta_ga*length(p_population))
+  # Insert worst beta_ga share of individuals
+  r_new_population[1:v_cutoff] =
+    p_population[v_pop_order[(length(p_population) - v_cutoff+1):(length(p_population))]]
+  # Fill up with best individuals
+  r_new_population[(v_cutoff+1):PopSize] =
+    p_population[v_pop_order[1:(PopSize-v_cutoff)]]
+  return(r_new_population)
+}
 
 
 
 
 ### START OF GA ###
 
-## Initialization of Population
-# create empty list where all candidates are stored
-population <- list()
-for(p in 1:PopSize){
-  population[[p]] <-  vector("list", n_size)  # Generate n_size list as n_size is
-                                                  # maximum amount of production batches
-  batch_i <- 1
-  # alpha_ga*PopSize candidates will be shuffled and then assigned first-fit
-  if(p <= alpha_ga*PopSize){jobs_ordered = sample(n_size)}
-  # (1-alpha_ga)*PopSize candidates will be sorted by degradation ascending and then assigned first-fit
-  else{jobs_ordered = job_df[order(job_df$degradation, decreasing = TRUE),]$job}
-  for(i in jobs_ordered){
-    # assign jobs to batch until batch reaches full deg
-    # if current batch + new job >= delta (= full deg)
-    if(sum(job_df$degradation[c(population[[p]][[batch_i]], i)]) >= delta){ 
-      # increase batch_i by one and open new batch
-      batch_i <- batch_i + 1
+## Initialize Population
+population = generate_pop_fun(p_init=TRUE, p_popsize = PopSize)
+fittest_candidate = NA
+for (i in 1:MaxGen){
+  ## Selection 
+  parents = tournament_fun(population)
+  ## Crossover
+  children = crossover_fun(parents)
+  ## Mutation
+  mut_children = mutation_fun(children, MutProb)
+  total_population = append(population, mut_children)
+  if (i == CycleGen){
+    # If coefficient of variation is higher than epsilon_max, delete worst Rst*PopSize
+    # individuals and generate random new ones (receptor editing) 
+    if (CoV_fun(total_population)<epsilon_min){
+      new_population = exploration_fun(total_population)
+      #new_population = replacement_fun(new_population) 
+      # If coefficient of variation is higher than epsilon_max, generate Rst*PopSize
+      # individuals by mutating best solutions and injecting them into population  
+    } else if (CoV_fun(total_population)>epsilon_max){
+      new_population = exploitation_fun(total_population)
+      #new_population = replacement_fun(new_population)
+    } else {
+      new_population = total_population
+    # If CoV is moderate, just replace  
+    #new_population = replacement_fun(total_population) 
     }
-    population[[p]][[batch_i]] <- c(population[[p]][[batch_i]], i) # append job to batch_i
+  }else{
+    new_population = replacement_fun(total_population)
   }
-  population[[p]][sapply(population[[p]], is.null)] <- NULL # remove empty batches
+  print(paste("Generation: ", i, ". Population size: ", length(new_population)))
+  ## Store fittest candidate in variable
+  pop_fitness = order(-as.data.frame(sapply(new_population, fitness_fun))[,1])
+  if(is.na(fittest_candidate) || fitness_fun(new_population[[pop_fitness[1]]])>fitness_fun(fittest_candidate)){
+    fittest_candidate = new_population[[pop_fitness[1]]]
+    print(paste("A fittest candidate was found with a fitness of ", fitness_fun(fittest_candidate)))
+  }else{
+    print(paste("No fitter candidate was found"))
+  }
 }
 
-## Selection 
-parents = tournament_fun(population)
-## Crossover
-children = crossover_fun(parents)
-### TODO: mutation_function
-mut_children = mutation_function(children)
+# Optional Open Issue (ToDo): Calibration (5.2)
+# If content with performance, do not implement as it is much effort
+# Optional Open Issue (ToDo): Comparison with Standard GA (5.3.1) und lower bound (5.3.2)
+
 
 ### Transform candidate solution (list of vectors) to result format (data.frame)
 result_ga <- data.frame(i=integer(), j=integer())
-# TODO: Replace candidate index 1 by index of fittest candidate!
-fittest_c = 5
-for(j in 1:length(population[[fittest_c]])){
-  for(i in 1:length(population[[fittest_c]][[j]])){
-    result_ga = rbind(result_ga, data.frame(i=population[[fittest_c]][[j]][[i]], j=j))
+for(j in 1:length(fittest_candidate)){
+  for(i in 1:length(fittest_candidate[[j]])){
+    result_ga = rbind(result_ga, data.frame(i=fittest_candidate[[j]][[i]], j=j))
   }
 }
+
   
