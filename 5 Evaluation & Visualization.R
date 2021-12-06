@@ -3,7 +3,6 @@ library(tidyverse)
 library(ggplot2)
 library(dplyr)
 
-
 ### Cost Evaluation
 # "result" must have following structure:
 # i   j
