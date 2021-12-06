@@ -266,7 +266,7 @@ mutation_fun = function(p_population, p_mutprob){
 }  
 
 ## Calculate Coefficient of Variance for a population
-CoV_fun = function(p_population){
+CoV_fun = function(p_population){ 
   # Mean cost of the whole population
   v_mean = mean(sapply(p_population, ga_cost_fun))
   # Standard deviation of the whole population
