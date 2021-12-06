@@ -1,7 +1,6 @@
 ### This implements
 
 ### Initialization
-library(GA)
 library(dplyr)
 
 PopSize = 200 # Population size
@@ -17,7 +16,7 @@ MaxGen = 300 # Stopping criteria
 
 ### FUNCTIONS ###
 
-### Initialization of Population
+## Initialization of Population
 generate_pop_fun = function(p_init=FALSE, p_popsize=PopSize){
   # create empty list where all candidates are stored
   r_population <- list()
@@ -48,8 +47,7 @@ generate_pop_fun = function(p_init=FALSE, p_popsize=PopSize){
   return(r_population)
 }
 
-
-### Calculate degradation for a batch ###
+## Calculate degradation for a batch ###
 degradation_fun = function(p_batch){
   # for each batch j calculate cumulative degradation
     v_cum_deg = 0
@@ -60,20 +58,27 @@ degradation_fun = function(p_batch){
     return(v_cum_deg)
 }
 
-### Calculate fitness function 
-## Calculate cost
-fitness_fun = function(p_candidate){
-    deg_ga = cost_ga = 0
-    for (jj in 1:(length(p_candidate)-1)){ # for each batch (last batch does not incur costs)
-      deg_ga = theta_deg + sum(job_df$degradation[p_candidate[[jj]]])  # set degradation to initial degradation +
-      # sum of degradation of all jobs in batch jj
-      cost_ga = cost_ga + cost_zero + ( cost_f - cost_zero ) * deg_ga
-    }
-    ## Calculate affinity/fitness = reciprocal of cost 
-    affinity = 1/cost_ga
+## Calculate cost function 
+ga_cost_fun = function(p_candidate, p_con_offset = 0, p_pow_offset = 1){
+  v_deg_ga = r_cost_ga = 0
+  for (jj in 1:(length(p_candidate)-1)){ # for each batch (last batch does not incur costs)
+    v_deg_ga = theta_deg + sum(job_df$degradation[p_candidate[[jj]]])
+    # set degradation to initial degradation +
+    # sum of degradation of all jobs in batch jj
+    r_cost_ga = r_cost_ga + cost_zero + ( cost_f - cost_zero ) * v_deg_ga
+  }
+  # Return cost. If sd parameters are set, substract constant offset (p_con_offset)
+  # and raise to power of power offset (p_pow_offset)
+  return((r_cost_ga-p_con_offset)**p_pow_offset)
 }
 
-### Tournament selection
+## Calculate fitness function 
+fitness_fun = function(p_candidate){
+    ## Calculate affinity/fitness = reciprocal of cost 
+    r_affinity = 1/ga_cost_fun(p_candidate)
+}
+
+## Tournament selection
 # Choose the fitter of two candidates for entire population
 tournament_fun = function(p_population){
   # Shuffle order of candidates
@@ -91,10 +96,10 @@ tournament_fun = function(p_population){
       # Second candidate is fitter, add to new population
       r_population_new[[i]] = p_population[[tournament_order[[i*2]]]]
       }
-     
   }
   return(r_population_new)
 }
+
 fill_child_fun = function(p_parent, p_child){
   # Loop through batches j of parent
   for (j in 1:(length(p_parent))){
@@ -126,10 +131,9 @@ fill_child_fun = function(p_parent, p_child){
   return(p_child)
 }
 
-
 ## Crossover of two parents
-# p_population must have an even length()!
-# Low prio TODO: When uneven, residual parent crosses over with random other parent
+# p_population must have an even length() as it gets halved!
+# Optional Open Issue (ToDo, low prio): When uneven, residual parent crosses over with random other parent
 crossover_fun = function(p_population){
   # Create empty list of children with length of population as upper bound
   # (if every pair of parents gets two children)
@@ -202,7 +206,7 @@ crossover_fun = function(p_population){
   return(r_children)
 }
 
-# Function: Mutate individuals randomly by Swapping
+## Mutate individuals randomly by Swapping
 mutation_fun = function(p_population, p_mutprob){
   for(i in 1:length(p_population)){
     # After the offspring are generated from the selection and crossover,
@@ -245,7 +249,6 @@ mutation_fun = function(p_population, p_mutprob){
             if(degradation_fun(v_temp_population[[v_batch_job1[[1]]]]) < delta &
                degradation_fun(v_temp_population[[v_batch_job2[[1]]]]) < delta){
               p_population[[i]] = v_temp_population
-              #print(paste("Swapped in chromosome", i)) # TODO DEBUG DELETE
               # We do not need to test other feasible solutions
               v_stop = TRUE
               break
@@ -262,25 +265,17 @@ mutation_fun = function(p_population, p_mutprob){
   return(p_population)
 }  
 
-ga_cost_fun = function(p_candidate){
-# TODO
-  r_cost = 0.5
-  return(r_cost)
-}
-
+## Calculate Coefficient of Variance for a population
 CoV_fun = function(p_population){
-  # TODO
-  
-  # Cost function ga_cost_fun für population/candidate erstellen und ausrechnen
-  # Mean cost
-  v_mean = 1
-  # Standard deviation cost 
-  v_sd = 1
-  r_cov = v_mean/v_sd
+  # Mean cost of the whole population
+  v_mean = mean(sapply(p_population, ga_cost_fun))
+  # Standard deviation of the whole population
+  v_sd = sqrt(mean(sapply(p_population, ga_cost_fun, p_con_offset = v_mean, p_pow_offset = 2)))
+  r_cov = v_sd/v_mean
   return(r_cov)
 }
 
-# Eliminate worst Rst*PopSize individuals and replace with randoms
+## Eliminate worst Rst*PopSize individuals and replace with randoms
 exploration_fun = function(p_population){
   # Generate Rst*PopSize individuals random, first-fit
   v_new_rand = generate_pop_fun(p_init=FALSE, p_popsize = Rst*PopSize)
@@ -291,7 +286,8 @@ exploration_fun = function(p_population){
   # Join fittest and new pop
   r_population = append(v_fittest_Rst, v_new_rand)
 }
-### Mutate fittest Rst*PopSize individuals and append to p_population
+
+## Mutate fittest Rst*PopSize individuals and append to p_population
 exploitation_fun = function(p_population){
   # get fittest Rst*PopSize individuals
   v_pop_fitness = as.data.frame(sapply(p_population, fitness_fun))
@@ -301,7 +297,7 @@ exploitation_fun = function(p_population){
   r_population = append(p_population, mutation_fun(v_fittest_Rst, 1))
 }
 
-# Function: Construct New Population with PopSize from parents and children
+## Construct New Population with PopSize from parents and children
 replacement_fun = function(p_population){
   v_pop_fitness = as.data.frame(sapply(p_population, fitness_fun))
   v_pop_order = order(-v_pop_fitness[,1])
@@ -319,45 +315,46 @@ replacement_fun = function(p_population){
 
 
 
+### START OF PROGRAM ###
 
-### START OF GA ###
-
-## Initialize Population
+# Initialize Population
 population = generate_pop_fun(p_init=TRUE, p_popsize = PopSize)
 fittest_candidate = NA
 for (i in 1:MaxGen){
-  ## Selection 
+  print(paste("Generation: ", i))
+  # Selection 
   parents = tournament_fun(population)
-  ## Crossover
+  # Crossover
   children = crossover_fun(parents)
-  ## Mutation
+  # Mutation
   mut_children = mutation_fun(children, MutProb)
   total_population = append(population, mut_children)
-  if (i == CycleGen){
+  if (i %% CycleGen == 0){
     # If coefficient of variation is higher than epsilon_max, delete worst Rst*PopSize
     # individuals and generate random new ones (receptor editing) 
     if (CoV_fun(total_population)<epsilon_min){
+      print(paste0("CoV ", CoV_fun(total_population), " is smaller than epsilon_max (", epsilon_min, "). Explore"))
       new_population = exploration_fun(total_population)
       #new_population = replacement_fun(new_population) 
       # If coefficient of variation is higher than epsilon_max, generate Rst*PopSize
       # individuals by mutating best solutions and injecting them into population  
     } else if (CoV_fun(total_population)>epsilon_max){
+      print(paste0("CoV ", CoV_fun(total_population), " is higher than epsilon_max (", epsilon_max, "). Exploit."))
       new_population = exploitation_fun(total_population)
       #new_population = replacement_fun(new_population)
     } else {
       new_population = total_population
-    # If CoV is moderate, just replace  
-    #new_population = replacement_fun(total_population) 
+    # If CoV is moderate, just replace
+    # new_population = replacement_fun(total_population) 
     }
   }else{
     new_population = replacement_fun(total_population)
   }
-  print(paste("Generation: ", i, ". Population size: ", length(new_population)))
-  ## Store fittest candidate in variable
+  # Store fittest candidate in variable
   pop_fitness = order(-as.data.frame(sapply(new_population, fitness_fun))[,1])
   if(is.na(fittest_candidate) || fitness_fun(new_population[[pop_fitness[1]]])>fitness_fun(fittest_candidate)){
     fittest_candidate = new_population[[pop_fitness[1]]]
-    print(paste("A fittest candidate was found with a fitness of ", fitness_fun(fittest_candidate)))
+    print(paste0("A fittest candidate was found with a fitness of ", fitness_fun(fittest_candidate)))
   }else{
     print(paste("No fitter candidate was found"))
   }
@@ -367,13 +364,10 @@ for (i in 1:MaxGen){
 # If content with performance, do not implement as it is much effort
 # Optional Open Issue (ToDo): Comparison with Standard GA (5.3.1) und lower bound (5.3.2)
 
-
-### Transform candidate solution (list of vectors) to result format (data.frame)
+## Transform candidate solution (list of vectors) to result format (data.frame)
 result_ga <- data.frame(i=integer(), j=integer())
 for(j in 1:length(fittest_candidate)){
   for(i in 1:length(fittest_candidate[[j]])){
     result_ga = rbind(result_ga, data.frame(i=fittest_candidate[[j]][[i]], j=j))
   }
 }
-
-  

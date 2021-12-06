@@ -1,5 +1,5 @@
 ### Initialization
-n_size <- 20 # Problem size
+n_size <- 200 # Problem size
 theta_deg <- 0 # Initial degradation
 delta <- 1 # maximal degradation
 cost_f = 100 # maximum predictive maintenance cost
