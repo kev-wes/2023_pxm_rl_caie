@@ -10,7 +10,8 @@ cost_zero       = 1000 # maximum predictive maintenance cost spent (degradation 
 cost_breakdown  = 2000 # cost for reactive / breakdown maintenance (degradation > delta)
 
 ## Init Jobs
-p_vec           = floor(runif(n_size, 100, 200)) # Processing time
+# TODO 2: Increase lengths?
+p_vec           = floor(runif(n_size, 450, 800)) # Processing time
 intensity_vec   = floor(runif(n_size, 1, 5))
 job_df          = data.frame(job=1:n_size, time=p_vec, intensity = intensity_vec, m_flag=0)
 
@@ -29,13 +30,17 @@ mean_rewards_over_epos  = rep(0, N_epo)
 net_AVF                 = net.create(sizes, activs)
 max_job_time_intensity  = max(job_df$time*job_df$intensity)
 
+cost_fun = function(p_action_store){
+  
+}
+
 for (epoch in 1:N_epo){
   print(paste("Epoch", epoch))
   # Draw alpha and epsilon for epoch
   alpha = alphas[epoch]
   eps = epsilons[epoch]
   # Initialize epoch history
-  rul_hist = 1 #rul_hist = rbind(rul_hist, 2.5)
+  rul_hist = 1
   rewards = 0
   action_store  = data.frame(job = NULL, time = NULL, intensity = NULL, m_flag = NULL)
   # First job = maintenance
@@ -51,14 +56,16 @@ for (epoch in 1:N_epo){
   i = 2
   while (dim(action_stack)[1] > 0){
     # Calculate state
-    # TODO Only calculate RUL for batch since last maintenance action
-    rul_hist = rbind(rul_hist, get_rul(action_store))
+    # Only calculate RUL for batch since last maintenance action
+    rul_hist = rbind(rul_hist, get_rul(action_store[tail(which(action_store$job == 'M'), n = 1):nrow(action_store),]))
     # Calculate reward
     # On each maintenance action, give a negative reward (=real costs for batch)
     if(old_action[[1]] == "M"){
+      #current_reward = -10
       current_reward = -(cost_zero + ( cost_f - cost_zero ) * (1-rul_hist[i-1]))
     # else give small reward proportional to used life of machine  
     }else if(rul_hist[i] >= 0){
+      #current_reward = 1
       current_reward = (cost_zero - cost_f) * (1-rul_hist[i])
     # if machine is broken, give negative breakdown reward  
     }else{
@@ -97,7 +104,8 @@ for (epoch in 1:N_epo){
     # If last action was maintenance, index will miss out of bounds w/o error,
     # and the action_stack will stay the same size
     action_stack = action_stack[-new_action_index,]
-    ### TODO: If Action Store is empty thereafter, calculate overall reward?!
+    ### TODO 4: If Action Store is empty thereafter, calculate overall reward?!
+    ### How? Delayed reward? Bookmark Firefox
     
     ## Update NN
     new_AV          = current_AFV[new_action_index]
@@ -112,7 +120,18 @@ for (epoch in 1:N_epo){
     
     i = i + 1
   }
+  # Give reward at end of epoch
+  #grad            = net.gradient.RL(net_AVF, data = c(old_states, (old_action[[2]] * old_action[[3]])/max_job_time_intensity, old_action[[4]]))
+  # Calculate final reward
+  #delta           = action_store
+  #net_AVF         = net.add.gradient.RL(net_AVF, grad = grad, stepsize = alpha * delta)
+  ### TODO 3: Visualization throughout one epoch (a la "5 Evaluation.R")
+  
+  ### TODO 5: Evaluation and monitoring function per epoch
+  ### Assess final score
 }
+
+
 
 # for epoch
 #   init 
