@@ -20,7 +20,7 @@ def get_rul(p_batch):
         r_loading = p_batch[p_batch.time >= t].iloc[0].intensity.copy()
         return {'i': r_loading}
     options = { #configuration for this sim
-        'save_freq': 1,  # Frequency at which results are saved (s)
+        'save_freq': 10,  # Frequency at which results are saved (s)
         'horizon': math.floor(p_batch.time.iloc[-1])  # Maximum time to simulate (s) - This is a cutoff. The simulation will end at this time, or when a threshold has been met, whichever is first
     }
     (times, inputs, states, outputs, event_states) = batt.simulate_to_threshold(future_loading, **options)
