@@ -174,20 +174,17 @@ class ProductionEnv(gym.Env):
         
         # Draw next order
         self.order = get_order(self.min_order, self.max_order, self.seed()[0])
-
+        
         # If a prognostics model is supplied, replace true health with approximated health
         if self.diag_model is not None:
             self.health = max(self.diag_model.predict([[self.t, self.v, self.t_1, self.v_1, self.t_2, self.v_2, self.t_3, self.v_3]])[0], 0)         
 
         # Stop when time self.max_ep_time has been reached
         self.time = self.time + 1
-        self.test = self.test + [self.rul, self.health, self.t, self.v, self.t_1, self.v_1, self.t_2, self.v_2, self.t_3, self.v_3,
-                    self.inventory, self.sp_inventory, self.order]
+        
+        
         if self.time == self.max_ep_time:
             done = True
-            with open('your_file.txt', 'w') as f:
-                for item in  self.test:
-                f.write("%s\n" % item)
         
         return self._get_obs(), reward, done, {}
 
