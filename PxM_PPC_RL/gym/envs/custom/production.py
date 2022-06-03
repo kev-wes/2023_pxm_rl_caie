@@ -1,3 +1,4 @@
+from pickle import FALSE, TRUE
 import gym
 import numpy as np
 from math import inf 
@@ -75,7 +76,7 @@ class ProductionEnv(gym.Env):
 
     """
 
-    def __init__(self, natural=False, diag_model=None):
+    def __init__(self, natural=False, diag_model = None, reactive_mode = False):
         warnings.filterwarnings("ignore")
         # Set prognostics model
         self.diag_model = diag_model
@@ -95,8 +96,13 @@ class ProductionEnv(gym.Env):
         self.max_order = 4 # Maximal order quantity
         self.init_t = 19.410832360806385 # Initial temp value of battery
         self.init_v = 3.8838358089883327 # Initial volt value of battery
+        self.breakdown = False # Reset breakdown indicator
 
-        self.action_space = spaces.Discrete(11)
+        # Don't allow maintenance
+        if reactive_mode: self.action_space = spaces.Discrete(10)
+        # Allow maintenance
+        else: self.action_space = spaces.Discrete(11)
+
         
         # Set floor and ceiling of state space
         low     = np.array([0, self.min_order, 0, 0,], dtype=np.float32,)
@@ -115,6 +121,7 @@ class ProductionEnv(gym.Env):
         assert self.action_space.contains(action)
         done = False
         reward = 0
+        self.breakdown = False
 
         # Spare parts inventory holding costs
         reward = reward - self.sp_inventory * self.spare_part_holding_c
@@ -147,6 +154,7 @@ class ProductionEnv(gym.Env):
             # More complex, black box degradation
             self.health, self.states, self.t, self.v = produce_model(self.battery, self.states, intensity)
             if self.health < 0: # Breakdown & Repair 
+                self.breakdown = True
                 intensity = 0 # Assume failure led to zero production (e.g., scrap)
                 # Reset states of battery
                 self.states = reset_states(self.battery)
