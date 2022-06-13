@@ -76,7 +76,7 @@ class ProductionEnv(gym.Env):
 
     """
 
-    def __init__(self, natural=False, diag_model = None, reactive_mode = False):
+    def __init__(self, natural=False, diag_model = None, reactive_mode = False, scheduled_time = 0):
         warnings.filterwarnings("ignore")
         # Set prognostics model
         self.diag_model = diag_model
@@ -97,9 +97,11 @@ class ProductionEnv(gym.Env):
         self.init_t = 19.410832360806385 # Initial temp value of battery
         self.init_v = 3.8838358089883327 # Initial volt value of battery
         self.breakdown = False # Reset breakdown indicator
+        self.scheduled_time = scheduled_time # Maintenance interval
+        self.scheduled_maintenance_counter = 0 # Scheduled maintenance time counter
 
         # Don't allow maintenance
-        if reactive_mode: self.action_space = spaces.Discrete(10)
+        if reactive_mode or scheduled_time: self.action_space = spaces.Discrete(10)
         # Allow maintenance
         else: self.action_space = spaces.Discrete(11)
 
@@ -122,6 +124,11 @@ class ProductionEnv(gym.Env):
         done = False
         reward = 0
         self.breakdown = False
+        # Increase scheduled maintenance counter by one time step
+        self.scheduled_maintenance_counter = self.scheduled_maintenance_counter + 1
+        # If counter reached the scheduled maintenance interval -> maintain 
+        if self.scheduled_maintenance_counter > self.scheduled_time:
+            action = 10
 
         # Spare parts inventory holding costs
         reward = reward - self.sp_inventory * self.spare_part_holding_c
@@ -136,6 +143,8 @@ class ProductionEnv(gym.Env):
             else: reward = reward - self.maintenance_c * self.health - self.sp_emergency_order_c # Spare part not available, so it must be ordered
             self.sp_inventory = 0
             self.health = 1
+            # Reset scheduled maintenance counter
+            self.scheduled_maintenance_counter = 0
         else:
             if action > 4:
                 intensity = action - 5
@@ -166,6 +175,8 @@ class ProductionEnv(gym.Env):
                 if self.sp_inventory > 0: reward = reward - self.repair_c 
                 else: reward = reward - self.repair_c - self.sp_emergency_order_c # Spare part not available, so it must be ordered 
                 self.sp_inventory = 0
+                # Reset scheduled maintenance counter
+                self.scheduled_maintenance_counter = 0
         # Calculate inventory cost
         reward = reward - self.inventory * self.holding_c
 
@@ -212,4 +223,5 @@ class ProductionEnv(gym.Env):
         self.order = get_order(self.min_order, self.max_order, self.seed()[0])
         self.inventory = 0
         self.sp_inventory = 0
+        self.scheduled_maintenance_counter = 0
         return self._get_obs()

@@ -50,7 +50,7 @@ reticulate::use_miniconda('r-reticulate')
 save_image(plot, file = "PxM_PPC_RL/visuals/scatter3d.svg")
 
 #### Figure 3 ####
-fig3_data <- read.csv("PxM_PPC_RL/visuals/rollout_ep_rew_mean.csv")
+fig3_data <- read.csv("PxM_PPC_RL/visuals/PPO_rollout_ep_rew_mean.csv")
 ggplot(fig3_data, aes(x = Step, y = Value)) + 
   geom_line()
 
@@ -59,7 +59,7 @@ ggplot(fig3_data, aes(x = Step, y = Value)) +
 library(tidyverse)
 library(Rtsne)
 # Load data
-fig4_data <- read_excel("PxM_PPC_RL/visuals/state_action.xlsx")
+fig4_data <- read_excel("PxM_PPC_RL/visuals/PPO_state_action.xlsx")
 names(fig4_data)[1] <- "ID"
 
 # Save action store for color
@@ -67,6 +67,7 @@ fig4_data_action <- fig4_data %>%
   select(ID, action)
 # Let us select relevant columns, standardise the data using scale() function
 # before applying Rstne() function to perform tSNE.
+set.seed(42)
 fig4_tsne_fit <- fig4_data %>%
   select(ID, health, order, inventory, sp_inventory) %>%
   column_to_rownames("ID") %>%
@@ -110,8 +111,7 @@ plot4 = plot_ly(x = fig4_tsne_df$tSNE1,
         type = "scatter",
         color = factor(fig4_tsne_df$action),
         colors = c("springgreen", "springgreen1", "springgreen2",
-                "springgreen3", "springgreen4", "cyan",
-                "cyan1", "cyan2", "cyan3", "cyan4", "red"))
+                "springgreen3", "springgreen4", "cyan3", "cyan4", "red"))
 # Export to html
 htmlwidgets::saveWidget(as_widget(plot4), "PxM_PPC_RL/visuals/tsne.html")
 # Export to excel
