@@ -40,25 +40,19 @@ def get_order(p_min = 1, p_max = 4, p_seed = None):
 class ProductionEnv(gym.Env):
     """ Simple Production Process
     Observation:
-        ACTIVE Version 1: Direct health
-            Type: Box(3)
+            Type: Box(4) or Box(3) if reactive_mode or scheduled_time
             Num     Observation                     Min                     Max
-            0       Health                          0                       1
+            (0      Health                          0                       1) only if !reactive_mode and !scheduled_time
             1       Order Quantity t+1              self.min_order = 0      self.max_order = 4
             2       Finished Inventory              0                       self.max_inventory = 9
             3       Spare Parts Inventory           0                       self.spare_parts_max_inventory
-            TODO Add Order Qty Forecasts
-            4       Order Quantity t+2              self.min_order = 0      self.max_order = 4
-            5       Order Quantity t+3              self.min_order = 0      self.max_order = 4
-            6       Order Quantity t+4              self.min_order = 0      self.max_order = 4
-            7       Order Quantity t+5              self.min_order = 0      self.max_order = 4
 
     Actions:
-        Type: Discrete(6)
+        Type: Discrete(6) or Discrete(5) if reactive_mode or scheduled_time
         Num   Action 
         0-4   Produce w/ intensity 0-4 and no spare parts order
         5-9   Produce w/ intensity 0-4 and order spare part
-        10    Repair
+        (10   Repair) only if !reactive_mode and !scheduled_time
 
     Reward:
         Lorem
@@ -68,16 +62,13 @@ class ProductionEnv(gym.Env):
 
     Episode Termination:
         The episode terminates after 100 time steps
-
-    TODO: 
-        1. Build Version 3: Predicted health based on Condition Values
-        2. Normalize values (e.g., condition data)
-        3. Add Noise
-
     """
 
     def __init__(self, natural=False, diag_model = None, reactive_mode = False, scheduled_time = 0):
+        # filter prog_models warnings
         warnings.filterwarnings("ignore")
+        # If reactive and scheduled maintenance parameters are filled, raise error
+        if reactive_mode and scheduled_time: raise ValueError('You cannot set maintenance strategy to reactive and scheduled.')
         # Set prognostics model
         self.diag_model = diag_model
         # Set parameter
@@ -99,16 +90,20 @@ class ProductionEnv(gym.Env):
         self.breakdown = False # Reset breakdown indicator
         self.scheduled_time = scheduled_time # Maintenance interval
         self.scheduled_maintenance_counter = 0 # Scheduled maintenance time counter
+        self.reactive_mode = reactive_mode
 
-        # Don't allow maintenance
-        if reactive_mode or scheduled_time: self.action_space = spaces.Discrete(10)
-        # Allow maintenance
-        else: self.action_space = spaces.Discrete(11)
-
-        
-        # Set floor and ceiling of state space
-        low     = np.array([0, self.min_order, 0, 0,], dtype=np.float32,)
-        high    = np.array([1, self.max_order, self.max_inventory, self.spare_parts_max_inventory,], dtype=np.float32,)
+        # Don't allow maintenance action and do not return health/condition
+        if self.reactive_mode or self.scheduled_time:
+            self.action_space = spaces.Discrete(10)
+            # Set floor and ceiling of state space
+            low     = np.array([self.min_order, 0, 0,], dtype=np.float32,)
+            high    = np.array([self.max_order, self.max_inventory, self.spare_parts_max_inventory,], dtype=np.float32,)
+        # Allow maintenance and return health/condition
+        else:
+            self.action_space = spaces.Discrete(11)
+            # Set floor and ceiling of state space
+            low     = np.array([0, self.min_order, 0, 0,], dtype=np.float32,)
+            high    = np.array([1, self.max_order, self.max_inventory, self.spare_parts_max_inventory,], dtype=np.float32,)
 
         self.observation_space = spaces.Box(low, high, dtype=np.float32)
 
@@ -124,11 +119,12 @@ class ProductionEnv(gym.Env):
         done = False
         reward = 0
         self.breakdown = False
-        # Increase scheduled maintenance counter by one time step
-        self.scheduled_maintenance_counter = self.scheduled_maintenance_counter + 1
-        # If counter reached the scheduled maintenance interval -> maintain 
-        if self.scheduled_maintenance_counter > self.scheduled_time:
-            action = 10
+        if self.scheduled_time:
+            # Increase scheduled maintenance counter by one time step
+            self.scheduled_maintenance_counter = self.scheduled_maintenance_counter + 1
+            # If counter reached the scheduled maintenance interval -> maintain 
+            if self.scheduled_maintenance_counter > self.scheduled_time:
+                action = 10
 
         # Spare parts inventory holding costs
         reward = reward - self.sp_inventory * self.spare_part_holding_c
@@ -144,7 +140,7 @@ class ProductionEnv(gym.Env):
             self.sp_inventory = 0
             self.health = 1
             # Reset scheduled maintenance counter
-            self.scheduled_maintenance_counter = 0
+            if self.scheduled_time: self.scheduled_maintenance_counter = 0
         else:
             if action > 4:
                 intensity = action - 5
@@ -176,7 +172,7 @@ class ProductionEnv(gym.Env):
                 else: reward = reward - self.repair_c - self.sp_emergency_order_c # Spare part not available, so it must be ordered 
                 self.sp_inventory = 0
                 # Reset scheduled maintenance counter
-                self.scheduled_maintenance_counter = 0
+                if self.scheduled_time: self.scheduled_maintenance_counter = 0
         # Calculate inventory cost
         reward = reward - self.inventory * self.holding_c
 
@@ -208,8 +204,11 @@ class ProductionEnv(gym.Env):
         return self._get_obs(), reward, done, {}
 
     def _get_obs(self):
-        return (self.health, self.order, self.inventory, self.sp_inventory)
-
+        # In case of reactive or scheduled maintenance, knowledge about condition is not available
+        if self.reactive_mode or self.scheduled_time:
+            return (self.order, self.inventory, self.sp_inventory)
+        else: 
+            return (self.health, self.order, self.inventory, self.sp_inventory)
     def reset(self):
         self.battery = BatteryCircuit()
         # Initial states
@@ -223,5 +222,5 @@ class ProductionEnv(gym.Env):
         self.order = get_order(self.min_order, self.max_order, self.seed()[0])
         self.inventory = 0
         self.sp_inventory = 0
-        self.scheduled_maintenance_counter = 0
+        if self.scheduled_time: self.scheduled_maintenance_counter = 0
         return self._get_obs()
