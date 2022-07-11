@@ -20,6 +20,7 @@ def produce_model(machine, states, action): # TODO: Allow seed
 
         # Set current state of machine
         machine.parameters['x0'] = states
+
         # Simulate 100 steps
         options = {
             'save_freq': 100,  # Frequency at which results are saved
@@ -62,13 +63,26 @@ class ProductionEnv(gym.Env):
 
     Episode Termination:
         The episode terminates after 100 time steps
+
+    Parameters:
+        diag_model: sklearn regression model that is used to derive the health of the machine. If None, true health values are used.
+        reactive_model: If True, action 10 (maintenance) is forbidden and the machine always runs to failure. Observations also do not contain condition or
+            health values.
+        scheduled_time: Time after which system is maintenance preventively. Resets after each breakdown or maintenance. If 0, scheduled mode is deactivated.
+        process_noise: Noise representing uncertainty in the model transition. Applied during state transition. Standard deviation.
+        measurement_noise: Noise representing uncertainty in the measurement process; e.g., sensor sensitivity, sensor misalignments, environmental effects.
+            Applied during estimation of outputs from states.
     """
 
-    def __init__(self, natural=False, diag_model = None, reactive_mode = False, scheduled_time = 0):
+    def __init__(self, natural=False, diag_model = None, reactive_mode = False, scheduled_time = 0, process_noise = False, measurement_noise = False):
         # filter prog_models warnings
         warnings.filterwarnings("ignore")
         # If reactive and scheduled maintenance parameters are filled, raise error
-        if reactive_mode and scheduled_time: raise ValueError('You cannot set maintenance strategy to reactive and scheduled.')
+        if reactive_mode and scheduled_time:
+            raise ValueError('You cannot set maintenance strategy to reactive and scheduled.')
+        # If reactive and scheduled maintenance parameters are filled, raise error
+        if diag_model and (reactive_mode or scheduled_time):
+            raise ValueError('You cannot set maintenance strategy to reactive or scheduled while diag_model is used.')
         # Set prognostics model
         self.diag_model = diag_model
         # Set parameter
@@ -91,6 +105,8 @@ class ProductionEnv(gym.Env):
         self.scheduled_time = scheduled_time # Maintenance interval
         self.scheduled_maintenance_counter = 0 # Scheduled maintenance time counter
         self.reactive_mode = reactive_mode
+        self.process_noise = process_noise
+        self.measurement_noise = measurement_noise
 
         # Don't allow maintenance action and do not return health/condition
         if self.reactive_mode or self.scheduled_time:
@@ -119,9 +135,9 @@ class ProductionEnv(gym.Env):
         done = False
         reward = 0
         self.breakdown = False
+        # Increase scheduled maintenance counter by one time step
+        self.scheduled_maintenance_counter = self.scheduled_maintenance_counter + 1
         if self.scheduled_time:
-            # Increase scheduled maintenance counter by one time step
-            self.scheduled_maintenance_counter = self.scheduled_maintenance_counter + 1
             # If counter reached the scheduled maintenance interval -> maintain 
             if self.scheduled_maintenance_counter > self.scheduled_time:
                 action = 10
@@ -135,12 +151,14 @@ class ProductionEnv(gym.Env):
             self.states = reset_states(self.battery)
             self.t = self.init_t
             self.v = self.init_v
-            if self.sp_inventory != 0: reward = reward - self.maintenance_c * self.health # Maintenance is less punished the closer to failure it is performed
-            else: reward = reward - self.maintenance_c * self.health - self.sp_emergency_order_c # Spare part not available, so it must be ordered
+            # Maintenance is less punished the closer to failure it is performed
+            if self.sp_inventory != 0: reward = reward - self.maintenance_c * self.health 
+            # Spare part not available, so it must be ordered
+            else: reward = reward - self.maintenance_c * self.health - self.sp_emergency_order_c 
             self.sp_inventory = 0
             self.health = 1
             # Reset scheduled maintenance counter
-            if self.scheduled_time: self.scheduled_maintenance_counter = 0
+            self.scheduled_maintenance_counter = 0
         else:
             if action > 4:
                 intensity = action - 5
@@ -169,10 +187,11 @@ class ProductionEnv(gym.Env):
                 self.t_1 = self.t_2 = self.t_3 = self.v_1 = self.v_2 = self.v_3 = 0
                 self.health = 1
                 if self.sp_inventory > 0: reward = reward - self.repair_c 
-                else: reward = reward - self.repair_c - self.sp_emergency_order_c # Spare part not available, so it must be ordered 
+                # Spare part not available, so it must be ordered 
+                else: reward = reward - self.repair_c - self.sp_emergency_order_c 
                 self.sp_inventory = 0
                 # Reset scheduled maintenance counter
-                if self.scheduled_time: self.scheduled_maintenance_counter = 0
+                self.scheduled_maintenance_counter = 0
         # Calculate inventory cost
         reward = reward - self.inventory * self.holding_c
 
@@ -196,8 +215,6 @@ class ProductionEnv(gym.Env):
 
         # Stop when time self.max_ep_time has been reached
         self.time = self.time + 1
-        
-        
         if self.time == self.max_ep_time:
             done = True
         
@@ -210,7 +227,7 @@ class ProductionEnv(gym.Env):
         else: 
             return (self.health, self.order, self.inventory, self.sp_inventory)
     def reset(self):
-        self.battery = BatteryCircuit()
+        self.battery = BatteryCircuit(process_noise = self.process_noise, measurement_noise = self.measurement_noise)
         # Initial states
         self.states = reset_states(self.battery)
         self.t = self.init_t
@@ -222,5 +239,5 @@ class ProductionEnv(gym.Env):
         self.order = get_order(self.min_order, self.max_order, self.seed()[0])
         self.inventory = 0
         self.sp_inventory = 0
-        if self.scheduled_time: self.scheduled_maintenance_counter = 0
+        self.scheduled_maintenance_counter = 0
         return self._get_obs()

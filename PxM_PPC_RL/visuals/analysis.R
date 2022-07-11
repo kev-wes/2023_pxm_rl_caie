@@ -17,7 +17,7 @@ for (i in seq_len(nrow(data))) {
         data[i, "run"] <- k
 }
 
-#### Figure 1 ####
+#### Figure 1: Predicted vs. True Health Figure ####
 
 temp_fig1_data <- filter(data, run == "6")
 temp_fig1_data$index <- as.numeric(x = row.names(temp_fig1_data))
@@ -30,7 +30,7 @@ ggplot(fig1_data, aes(x = Time, y = Health, color = Var)) +
   geom_line() +
   labs(colour = "Legend")
 
-#### Figure 2 ####
+#### Figure 2: Temperature-Voltage-Health-Correlation Figure ####
 library(plotly)
 temp_fig2_data <- data %>% filter(health > 0)
 plot <- plot_ly(x = temp_fig2_data$t,
@@ -49,7 +49,7 @@ reticulate::conda_install('r-reticulate', 'plotly', channel = 'plotly')
 reticulate::use_miniconda('r-reticulate')                          
 save_image(plot, file = "PxM_PPC_RL/visuals/scatter3d.svg")
 
-#### Figure 3 ####
+#### Figure 3: Average Reward per Episode Figure ####
 fig3_data <- read.csv("PxM_PPC_RL/visuals/PPO_rollout_ep_rew_mean.csv")
 ggplot(fig3_data, aes(x = Step, y = Value)) + 
   geom_line()
