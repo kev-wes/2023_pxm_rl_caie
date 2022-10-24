@@ -31,12 +31,15 @@ def produce_model(machine, states, action): # TODO: Allow seed
         return(round(health, 2), states[-1], outputs[-1]['t'], outputs[-1]['v'])
 
 # Get random integer order quantity between min and max  
-def get_order(p_min = 1, p_max = 4, p_seed = None):
+def get_order(p_min = 1, p_max = 4, p_size = 100, p_seed = None):
     #if p_seed is not None:
      #   np.random.default_rng(p_seed)
      #   np.random.seed(5)
     #return(round(np.random.uniform(min, max))) 
-    return(min(np.random.poisson(p_max, 1)[0], p_max))
+    #return(min(np.random.poisson(p_max, 1)[0], p_max))
+    return(min(max(0, round(np.random.normal(p_max/2, 1, 1)[0], 2)), p_max))
+
+    #return(max(0, round(np.random.normal(p_max/2, 1, p_size)[0], 2)))
 
 class ProductionEnv(gym.Env):
     """ Simple Production Process
@@ -65,36 +68,53 @@ class ProductionEnv(gym.Env):
         The episode terminates after 100 time steps
 
     Parameters:
-        diag_model: sklearn regression model that is used to derive the health of the machine. If None, true health values are used.
+        diag_model: sklearn regression model that is used to derive the health of the machine. If None, true health values or prog_model are used.
+        prog_model: sklearn regression model that is used to derive the RUL of the machine. If None, true health values or diag_model are used.
         reactive_model: If True, action 10 (maintenance) is forbidden and the machine always runs to failure. Observations also do not contain condition or
             health values.
         scheduled_time: Time after which system is maintenance preventively. Resets after each breakdown or maintenance. If 0, scheduled mode is deactivated.
+        spare_part: Boolean value signifying whether spare parts and cost should be regarded
         process_noise: Noise representing uncertainty in the model transition. Applied during state transition. Standard deviation.
         measurement_noise: Noise representing uncertainty in the measurement process; e.g., sensor sensitivity, sensor misalignments, environmental effects.
             Applied during estimation of outputs from states.
     """
 
-    def __init__(self, natural=False, diag_model = None, reactive_mode = False, scheduled_time = 0, process_noise = False, measurement_noise = False):
+    def __init__(self, natural=False, diag_model = None, prog_model = None, reactive_mode = False, scheduled_time = 0, spare_part = True, process_noise = False, measurement_noise = False):
         # filter prog_models warnings
         warnings.filterwarnings("ignore")
         # If reactive and scheduled maintenance parameters are filled, raise error
         if reactive_mode and scheduled_time:
             raise ValueError('You cannot set maintenance strategy to reactive and scheduled.')
         # If reactive and scheduled maintenance parameters are filled, raise error
-        if diag_model and (reactive_mode or scheduled_time):
+        if (diag_model or prog_model) and (reactive_mode or scheduled_time):
             raise ValueError('You cannot set maintenance strategy to reactive or scheduled while diag_model is used.')
-        # Set prognostics model
+        # If reactive and scheduled maintenance parameters are filled, raise error
+        if (diag_model and prog_model):
+            raise ValueError('You must only use either a diag_model or prog_model.')
+        # Set diagnostics model
         self.diag_model = diag_model
+        # Set prognostics model
+        self.prog_model = prog_model
+        # Set spare_part Boolean
+        self.spare_part = spare_part
+        # Define action space
+        self.prod_levels = 5
+
         # Set parameter
         self.max_ep_time = 100 # Time at which episode terminates
         self.maintenance_c = 100 # Predictive Maintenance cost at health = 1
         self.repair_c = 500 # Reactive Repair cost
         self.backorder_c = 4 # Backorder cost
         self.order_r = 2 # Order fulfillment reward
-        self.spare_part_order_c = 10 # Spare part order cost
-        self.spare_part_holding_c = 1 # Spare part holding cos
+        if spare_part:
+            self.spare_part_order_c = 10 # Spare part order cost
+            self.spare_part_holding_c = 1 # Spare part holding cost
+            self.sp_emergency_order_c = 300 # Spare parts emergency order costs if inventory is zero
+        else:
+            self.spare_part_order_c = 0 # Spare part order cost
+            self.spare_part_holding_c = 0 # Spare part holding cost
+            self.sp_emergency_order_c = 0 # Spare parts emergency order costs if inventory is zero 
         self.spare_parts_max_inventory = 1 # Maximal spare parts inventory
-        self.sp_emergency_order_c = 300 # Spare parts emergency order costs if inventory is zero
         self.holding_c = 1 # Holding cost
         self.max_inventory = 9 # Maximal inventory
         self.min_order = 0 # Minimal order quantity
@@ -108,19 +128,34 @@ class ProductionEnv(gym.Env):
         self.process_noise = process_noise
         self.measurement_noise = measurement_noise
 
-        # Don't allow maintenance action and do not return health/condition
-        if self.reactive_mode or self.scheduled_time:
-            self.action_space = spaces.Discrete(10)
-            # Set floor and ceiling of state space
-            low     = np.array([self.min_order, 0, 0,], dtype=np.float32,)
-            high    = np.array([self.max_order, self.max_inventory, self.spare_parts_max_inventory,], dtype=np.float32,)
-        # Allow maintenance and return health/condition
-        else:
-            self.action_space = spaces.Discrete(11)
-            # Set floor and ceiling of state space
-            low     = np.array([0, self.min_order, 0, 0,], dtype=np.float32,)
-            high    = np.array([1, self.max_order, self.max_inventory, self.spare_parts_max_inventory,], dtype=np.float32,)
+        #Don't allow maintenance action and do not return health/condition
+        # if self.reactive_mode or self.scheduled_time:
+        #    self.action_space = spaces.Discrete(10)
+        #    # Set floor and ceiling of state space
+        #    low     = np.array([self.min_order, 0, 0,], dtype=np.float32,)
+        #    high    = np.array([self.max_order, self.max_inventory, self.spare_parts_max_inventory,], dtype=np.float32,)
+        # #Allow maintenance and return health/condition
+        # else:
+        #    self.action_space = spaces.Discrete(11)
+        #    # Set floor and ceiling of state space
+        #    low     = np.array([0, self.min_order, 0, 0,], dtype=np.float32,)
+        #    high    = np.array([1, self.max_order, self.max_inventory, self.spare_parts_max_inventory,], dtype=np.float32,)
+        self.actions = self.prod_levels
+        low = np.array([], dtype=np.float32,)
+        high = np.array([], dtype=np.float32,)
+        if not (self.reactive_mode or self.scheduled_time):
+            self.actions = self.actions + 1
+            low = np.append(low, [0])
+            high = np.append(high, [1])
+        low = np.append(low, [self.min_order, 0])
+        high = np.append(high, [self.max_order, self.max_inventory])
+        if self.spare_part:  
+            self.actions = self.actions + self.prod_levels
+            low = np.append(low, [0,])
+            high = np.append(high, [self.spare_parts_max_inventory,])
 
+
+        self.action_space = spaces.Discrete(self.actions)
         self.observation_space = spaces.Box(low, high, dtype=np.float32)
 
         self.seed()
@@ -145,7 +180,7 @@ class ProductionEnv(gym.Env):
         # Spare parts inventory holding costs
         reward = reward - self.sp_inventory * self.spare_part_holding_c
         # Calculate health
-        if action == 10: # no production & maintain
+        if action == self.actions-1: # no production & maintain
             intensity = 0
             # Reset states of battery
             self.states = reset_states(self.battery)
@@ -209,9 +244,12 @@ class ProductionEnv(gym.Env):
         # Draw next order
         self.order = get_order(self.min_order, self.max_order, self.seed()[0])
         
-        # If a prognostics model is supplied, replace true health with approximated health
+        # If a diagnostics model is supplied, replace true health with approximated health
         if self.diag_model is not None:
-            self.health = max(self.diag_model.predict([[self.t, self.v, self.t_1, self.v_1, self.t_2, self.v_2, self.t_3, self.v_3]])[0], 0)         
+            self.health = max(self.diag_model.predict([[self.t, self.v, self.t_1, self.v_1, self.t_2, self.v_2, self.t_3, self.v_3]])[0], 0)
+        elif self.prog_model is not None:
+            self.rul = max(self.prog_model.predict([[self.t, self.v, self.t_1, self.v_1, self.t_2, self.v_2, self.t_3, self.v_3]])[0], 0)
+        
 
         # Stop when time self.max_ep_time has been reached
         self.time = self.time + 1
@@ -222,10 +260,28 @@ class ProductionEnv(gym.Env):
 
     def _get_obs(self):
         # In case of reactive or scheduled maintenance, knowledge about condition is not available
-        if self.reactive_mode or self.scheduled_time:
-            return (self.order, self.inventory, self.sp_inventory)
-        else: 
-            return (self.health, self.order, self.inventory, self.sp_inventory)
+        ret = []
+
+        #if self.reactive_mode or self.scheduled_time:
+        #    return (self.order, self.inventory, self.sp_inventory)
+        #elif self.prog_model:
+        #    return (self.rul, self.order, self.inventory, self.sp_inventory)
+        #else: 
+        #    return (self.health, self.order, self.inventory, self.sp_inventory)
+        if self.prog_model:
+            ret.append(self.rul)
+        elif self.reactive_mode or self.scheduled_time:
+            ret = ret
+        else:
+            ret.append(self.health)
+        ret.append(self.order)
+        ret.append(self.inventory)
+        if self.spare_part:
+            ret.append(self.sp_inventory)
+        return(ret)
+        
+
+            
     def reset(self):
         self.battery = BatteryCircuit(process_noise = self.process_noise, measurement_noise = self.measurement_noise)
         # Initial states
@@ -233,6 +289,7 @@ class ProductionEnv(gym.Env):
         self.t = self.init_t
         self.v = self.init_v
         self.t_1 = self.t_2 = self.t_3 = self.v_1 = self.v_2 = self.v_3 = 0
+        self.rul = 99
         self.health = 1
         self.test = []
         self.time = 0

@@ -3,6 +3,15 @@ library(tidyverse)
 library(ggplot2)
 library(dplyr)
 
+# SOF Test for Shu-Ting, remove later # 
+n_size <- 20 # Problem size
+p_vec <- runif(n_size, 1, 50) # Processing time
+rul_vec <- runif(n_size, 100, 150) # Degradation time
+delta_vec <- p_vec / rul_vec
+job_df = data.frame(job=1:n_size, p_time=p_vec, degradation = delta_vec)
+test_result <- data.frame(i = 1:20, j = c(rep(1, 10), rep(2, 10)))
+# EOF Test for Shu-Ting, remove later #
+
 ### Cost Evaluation
 # "result" must have following structure:
 # i   j
@@ -71,7 +80,8 @@ plot_fun = function(p_result, p_max_jobs=20){
 
   
 ### Evaluate cost and plot
-cost_fun(result_mip)
-cost_fun(result_ga)
-plot_fun(result_mip, 20)
-plot_fun(result_ga, 20)
+#cost_fun(result_mip)
+#cost_fun(result_ga)
+#plot_fun(result_mip, 20)
+#plot_fun(result_ga, 20)
+plot_fun(test_result, 20)
