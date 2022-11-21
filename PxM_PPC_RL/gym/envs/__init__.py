@@ -880,3 +880,8 @@ register(
     id="Production-v0",
     entry_point="gym.envs.custom:ProductionEnv",
 )
+
+register(
+    id="Steel-v0",
+    entry_point="gym.envs.custom:SteelEnv",
+)
