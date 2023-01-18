@@ -73,8 +73,8 @@ class SteelEnv(gym.Env):
 
         # Set variables
         self.max_ep_time = 100 # Time at which episode terminates
-        self.c_repair = -5
-        self.c_breakdown = -10
+        self.c_repair = -10
+        self.c_breakdown = -20
         self.r_prod = 1
         self.c_scrap = -1
         # Set constants
@@ -140,7 +140,7 @@ class SteelEnv(gym.Env):
                 self.scheduled_maintenance_counter = 0
             else:
                 # If production, calculate bar quality (non-faulty = 1, faulty = 0)
-                self.quality = np.random.binomial(1, min(1, self.health*(1+(action/10))))
+                self.quality = np.random.binomial(1, min(1, self.health+(action/5)))
                 # If self.quality = 1 (non-faulty), receive production revenue
                 if self.quality: reward = self.r_prod
                 # If self.quality = 0 (faulty), incur scrap cost

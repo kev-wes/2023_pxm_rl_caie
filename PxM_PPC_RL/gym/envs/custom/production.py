@@ -72,10 +72,13 @@ class ProductionEnv(gym.Env):
             Applied during estimation of outputs from states.
         forecast: number of next demand observations that are returned to the agent (default = 1 = only next order)
         prod_level: Number of production levels/quantities available
+        max_inventory: The maximum allowable finished goods inventory to carry. Relevant for observation space.
+        max_demand: The maximum allowable demand to occur. Relevant for observation space.
     """
 
     def __init__(self, natural=False, diag_model = None, prog_model = None, reactive_mode = False, scheduled_time = 0,
-                 spare_part = True, process_noise = False, measurement_noise = False, forecast = 1, prod_levels = 5):
+                 spare_part = True, process_noise = False, measurement_noise = False, forecast = 1, prod_levels = 5,
+                 max_order = float('inf'), max_inventory = float('inf')):
         # filter prog_models warnings
         warnings.filterwarnings("ignore")
         # If reactive and scheduled maintenance parameters are filled, raise error
@@ -121,7 +124,8 @@ class ProductionEnv(gym.Env):
             self.sp_emergency_order_c = 0 # Spare parts emergency order costs if inventory is zero 
         self.spare_parts_max_inventory = 1 # Maximal spare parts inventory
         self.holding_c = 5 # Holding cost
-        self.max_inventory = float('inf') # Maximal inventory
+        self.max_inventory = max_inventory # Maximal inventory
+        self.max_order = max_order # Maximal inventory
         self.min_order = 0 # Minimal order quantity
         self.init_t = 19.410832360806385 # Initial temp value of battery
         self.init_v = 3.8838358089883327 # Initial volt value of battery
@@ -143,7 +147,7 @@ class ProductionEnv(gym.Env):
         # Append state array of self.forecast length and values self.min_order as lower bound
         low = np.append(low, np.full(self.forecast, self.min_order))   
         # Append state array of self.forecast length and inf as upper bound
-        high = np.append(high, np.full(self.forecast, float('inf')))   
+        high = np.append(high, np.full(self.forecast, self.max_order))   
         # Append lower and upper bounds for inventory
         low = np.append(low, [0])
         high = np.append(high, [self.max_inventory])
