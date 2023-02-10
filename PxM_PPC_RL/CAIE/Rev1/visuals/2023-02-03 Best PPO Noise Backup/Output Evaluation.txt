@@ -1,0 +1,77 @@
+Gamma = 0.9, Learning Rate = 0.003, Activation Function = ReLU, Neurons = 8, Process noise = 0.0, Measurement noise = 0.0
+The average number of reactive maintenance interventions per episode is:  0.858
+The average number of preventive maintenance interventions per episode is:  6.93
+The average sum of inventory per episode is:  191.693
+The average sum of spare parts inventory per episode is:  13.17
+The average reward per episode is:  1637.301
+The average upper bound per episode is:  3009.13
+Gamma = 0.9, Learning Rate = 0.003, Activation Function = ReLU, Neurons = 8, Process noise = 0.1, Measurement noise = 0.0
+The average number of reactive maintenance interventions per episode is:  0.764
+The average number of preventive maintenance interventions per episode is:  6.951
+The average sum of inventory per episode is:  186.68
+The average sum of spare parts inventory per episode is:  8.468
+The average reward per episode is:  1655.766
+The average upper bound per episode is:  2997.14
+Gamma = 0.9, Learning Rate = 0.003, Activation Function = ReLU, Neurons = 8, Process noise = 0.2, Measurement noise = 0.0
+The average number of reactive maintenance interventions per episode is:  0.927
+The average number of preventive maintenance interventions per episode is:  6.858
+The average sum of inventory per episode is:  212.363
+The average sum of spare parts inventory per episode is:  8.279
+The average reward per episode is:  1664.79
+The average upper bound per episode is:  2996.18
+Gamma = 0.9, Learning Rate = 0.003, Activation Function = ReLU, Neurons = 8, Process noise = 0.30000000000000004, Measurement noise = 0.0
+The average number of reactive maintenance interventions per episode is:  0.844
+The average number of preventive maintenance interventions per episode is:  7.212
+The average sum of inventory per episode is:  207.973
+The average sum of spare parts inventory per episode is:  8.398
+The average reward per episode is:  1640.75
+The average upper bound per episode is:  3004.93
+Gamma = 0.9, Learning Rate = 0.003, Activation Function = ReLU, Neurons = 8, Process noise = 0.4, Measurement noise = 0.0
+The average number of reactive maintenance interventions per episode is:  1.11
+The average number of preventive maintenance interventions per episode is:  6.627
+The average sum of inventory per episode is:  175.762
+The average sum of spare parts inventory per episode is:  7.001
+The average reward per episode is:  1579.884
+The average upper bound per episode is:  2996.9
+Gamma = 0.9, Learning Rate = 0.003, Activation Function = ReLU, Neurons = 8, Process noise = 0.5, Measurement noise = 0.0
+The average number of reactive maintenance interventions per episode is:  1.201
+The average number of preventive maintenance interventions per episode is:  6.685
+The average sum of inventory per episode is:  174.588
+The average sum of spare parts inventory per episode is:  7.223
+The average reward per episode is:  1544.023
+The average upper bound per episode is:  2997.85
+Gamma = 0.9, Learning Rate = 0.003, Activation Function = ReLU, Neurons = 8, Process noise = 0.6000000000000001, Measurement noise = 0.0
+The average number of reactive maintenance interventions per episode is:  0.971
+The average number of preventive maintenance interventions per episode is:  7.254
+The average sum of inventory per episode is:  174.762
+The average sum of spare parts inventory per episode is:  7.867
+The average reward per episode is:  1509.946
+The average upper bound per episode is:  3002.44
+Gamma = 0.9, Learning Rate = 0.003, Activation Function = ReLU, Neurons = 8, Process noise = 0.7000000000000001, Measurement noise = 0.0
+The average number of reactive maintenance interventions per episode is:  1.391
+The average number of preventive maintenance interventions per episode is:  6.466
+The average sum of inventory per episode is:  176.374
+The average sum of spare parts inventory per episode is:  9.025
+The average reward per episode is:  1453.004
+The average upper bound per episode is:  3005.4
+Gamma = 0.9, Learning Rate = 0.003, Activation Function = ReLU, Neurons = 8, Process noise = 0.8, Measurement noise = 0.0
+The average number of reactive maintenance interventions per episode is:  1.893
+The average number of preventive maintenance interventions per episode is:  5.962
+The average sum of inventory per episode is:  158.376
+The average sum of spare parts inventory per episode is:  7.291
+The average reward per episode is:  1351.141
+The average upper bound per episode is:  3004.09
+Gamma = 0.9, Learning Rate = 0.003, Activation Function = ReLU, Neurons = 8, Process noise = 0.9, Measurement noise = 0.0
+The average number of reactive maintenance interventions per episode is:  1.026
+The average number of preventive maintenance interventions per episode is:  6.957
+The average sum of inventory per episode is:  157.548
+The average sum of spare parts inventory per episode is:  10.807
+The average reward per episode is:  1323.59
+The average upper bound per episode is:  2995.96
+Gamma = 0.9, Learning Rate = 0.003, Activation Function = ReLU, Neurons = 8, Process noise = 1.0, Measurement noise = 0.0
+The average number of reactive maintenance interventions per episode is:  1.701
+The average number of preventive maintenance interventions per episode is:  5.841
+The average sum of inventory per episode is:  148.417
+The average sum of spare parts inventory per episode is:  9.11
+The average reward per episode is:  1209.234
+The average upper bound per episode is:  2992.73

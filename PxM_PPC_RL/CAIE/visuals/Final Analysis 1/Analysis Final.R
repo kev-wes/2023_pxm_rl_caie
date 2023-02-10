@@ -180,6 +180,62 @@ plot4a = data1 %>%
 plot_grid(plot4a, plot4b, plot4c, plot4d, ncol = 1, rel_heights = c(6, .5, .5, .5))
 ggsave(file=paste(path, 'fig.eps', sep=''), width = 7, height = 5, units = "in") 
 
+
+#### Figure 5a State-Value####
+library(tidyverse)
+library(Rtsne)
+library(readxl)
+# Load data
+fig5a_data <- read_excel("./state_value.xlsx")
+names(fig5a_data)[1] <- "ID"
+
+# Save action store for color
+fig5a_data_action <- fig5a_data %>%
+  select(ID, value)
+# Let us select relevant columns, standardise the data using scale() function
+# before applying Rstne() function to perform tSNE.
+set.seed(42)
+fig5a_tsne_fit <- fig5a_data %>%
+  select(ID, health, inventory, sp_inventory) %>%
+  column_to_rownames("ID") %>%
+  scale() %>%
+  Rtsne()
+
+# The tSNE result object contains two tSNE components that we are interested in.
+# We can extract the component and save it in a dataframe. 
+fig5a_tsne_df <- fig5a_tsne_fit$Y %>% 
+  as.data.frame() %>%
+  rename(tSNE1="V1",
+         tSNE2="V2") %>%
+  mutate(ID=row_number())
+
+# Using the unique row ID, we can combine the tSNE components with the meta data information.
+fig5a_tsne_df <- fig5a_tsne_df %>%
+  inner_join(fig5a_data_action, by="ID")
+
+# Let us make a tSNE plot, which is a scatter plot with two tSNE components on x and y-axis.
+# Here we have colored the data points by action.
+fig5a_tsne_df %>%
+  ggplot(aes(x = tSNE1, 
+             y = tSNE2,
+             color = value))+
+  geom_point() + scale_color_continuous(type = "viridis")
+
+# Interactive version
+plot5a = plot_ly(x = fig5a_tsne_df$tSNE1,
+                 y = fig5a_tsne_df$tSNE2,
+                 type = "scatter",
+                 color = fig5a_tsne_df$value,
+                 colors = "viridis")
+# Export to html
+htmlwidgets::saveWidget(as_widget(plot5a), "./tsne_state_value.html")
+# Export to excel
+library(writexl)
+write_xlsx(fig5a_data, "./tsne_state_value_raw_data.xlsx")
+write_xlsx(fig5a_tsne_df, "./tsne_state_value_ID_lookup_data.xlsx")
+
+
+
 #### Figure 5: tSNE Figure State-Action ####
 
 fig5_tsne_df <- read_excel(paste(path, "tsne.xlsx", sep=""))
